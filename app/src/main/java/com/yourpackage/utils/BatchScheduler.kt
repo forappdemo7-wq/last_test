@@ -7,20 +7,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.util.Random
 import kotlin.random.Random
 
 /**
  * Handles scheduled batch sending with randomized jitter to avoid detection.
- * Sends batches at intervals between 25 and 45 seconds (with some randomness).
+ * Sends batches at intervals between 25 and 45 seconds.
  */
 class BatchScheduler(
     private val onBatchReady: suspend () -> Unit
 ) {
     companion object {
         private const val TAG = "BatchScheduler"
-        private const val MIN_INTERVAL_MS = 25_000L // 25 seconds
-        private const val MAX_INTERVAL_MS = 45_000L // 45 seconds
+        private const val MIN_INTERVAL_MS = 25_000L
+        private const val MAX_INTERVAL_MS = 45_000L
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -28,9 +27,6 @@ class BatchScheduler(
     private var isRunning = false
     private val random = Random(System.currentTimeMillis())
 
-    /**
-     * Start the scheduler. It will call onBatchReady at random intervals.
-     */
     fun start() {
         if (isRunning) {
             Log.d(TAG, "Scheduler already running")
@@ -41,22 +37,15 @@ class BatchScheduler(
         scheduleNext()
     }
 
-    /**
-     * Stop the scheduler.
-     */
     fun stop() {
         isRunning = false
         handler.removeCallbacksAndMessages(null)
         Log.d(TAG, "⏹️ Batch scheduler stopped")
     }
 
-    /**
-     * Schedule the next batch execution with jitter.
-     */
     private fun scheduleNext() {
         if (!isRunning) return
 
-        // Generate random jitter between MIN and MAX
         val interval = MIN_INTERVAL_MS + random.nextLong(MAX_INTERVAL_MS - MIN_INTERVAL_MS)
         Log.d(TAG, "⏱️ Next batch in ${interval / 1000} seconds")
 
@@ -69,7 +58,6 @@ class BatchScheduler(
                     } catch (e: Exception) {
                         Log.e(TAG, "❌ Batch execution failed: ${e.message}")
                     } finally {
-                        // Schedule the next one regardless of success/failure
                         scheduleNext()
                     }
                 }
@@ -77,14 +65,8 @@ class BatchScheduler(
         }, interval)
     }
 
-    /**
-     * Check if the scheduler is currently running.
-     */
     fun isActive(): Boolean = isRunning
 
-    /**
-     * Manually trigger a batch immediately (for testing or emergency).
-     */
     fun triggerNow() {
         if (isRunning) {
             handler.removeCallbacksAndMessages(null)
