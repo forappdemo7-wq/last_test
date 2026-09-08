@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'kotlin-kapt'   // <--- THIS WAS MISSING
 }
 
 android {
@@ -45,21 +46,21 @@ dependencies {
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
-    // OkHttp for networking
+    // OkHttp
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
 
-    // Room for offline storage
+    // Room
     implementation 'androidx.room:room-runtime:2.6.1'
     implementation 'androidx.room:room-ktx:2.6.1'
-    kapt 'androidx.room:room-compiler:2.6.1'
+    kapt 'androidx.room:room-compiler:2.6.1'   // <--- THIS MUST BE "kapt"
 
-    // Security Crypto for encrypted storage
+    // Security Crypto
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 
-    // Gson for JSON parsing
+    // Gson
     implementation 'com.google.code.gson:gson:2.10.1'
 
-    // WorkManager for background retries
+    // WorkManager
     implementation 'androidx.work:work-runtime-ktx:2.9.0'
 }
