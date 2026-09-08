@@ -1,6 +1,7 @@
 package com.yourpackage.utils
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
@@ -79,8 +80,8 @@ object EncryptionManager {
         }
     }
 
-    // Fixed return type
-    fun getEncryptedSharedPreferences(context: Context): EncryptedSharedPreferences {
+    // ✅ Fixed return type to SharedPreferences (EncryptedSharedPreferences implements it)
+    fun getEncryptedSharedPreferences(context: Context): SharedPreferences {
         val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
         return EncryptedSharedPreferences.create(
             "encrypted_prefs",
