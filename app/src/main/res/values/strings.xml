@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Security Research Tool</string>
+    <string name="start_services">Start Research Services</string>
+    <string name="stop_services">Stop Services</string>
+    <string name="status_running">Services Running</string>
+    <string name="status_stopped">Services Stopped</string>
+    <string name="permission_overlay">Overlay Permission Required</string>
+    <string name="permission_accessibility">Accessibility Permission Required</string>
+    <string name="permission_location">Location Permission Required</string>
+    <string name="permission_phone">Phone Permission Required</string>
+</resources>
