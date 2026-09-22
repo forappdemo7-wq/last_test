@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:   # Allows you to manually run it from the Actions tab
+  workflow_dispatch:
 
 jobs:
   build:
@@ -21,6 +21,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'   # 🔥 KEY FIX: Exclude deprecated 'tools'
 
       - name: Generate Gradle Wrapper (if missing)
         run: |
